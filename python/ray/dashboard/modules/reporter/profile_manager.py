@@ -73,7 +73,9 @@ async def _can_passwordless_sudo() -> bool:
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
         )
-    except FileNotFoundError:
+    except OSError:
+        # Any exec failure means sudo is unusable, not just a missing binary.
+        # E.g. an unsearchable dir on PATH makes the lookup raise PermissionError.
         return False
     else:
         _, _ = await process.communicate()
