@@ -1,3 +1,4 @@
+import errno
 import os
 import sys
 import tempfile
@@ -11,6 +12,7 @@ from ray._private import ray_constants
 from ray.dashboard.modules.reporter.profile_manager import (
     CpuProfilingManager,
     MemoryProfilingManager,
+    _can_passwordless_sudo,
 )
 from ray.dashboard.tests.conftest import *  # noqa
 
@@ -363,6 +365,22 @@ class TestProfilingFormatValidation:
         cmd, message = await self._capture_memray_cmd("speedscope")
         assert cmd is None
         assert "speedscope is not supported" in message
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "exec_error",
+    [
+        FileNotFoundError(errno.ENOENT, "No such file or directory"),
+        # An unsearchable directory on PATH (e.g. mode 0700) yields EACCES.
+        PermissionError(errno.EACCES, "Permission denied"),
+        OSError(errno.ENOEXEC, "Exec format error"),
+    ],
+    ids=["ENOENT", "EACCES", "ENOEXEC"],
+)
+async def test_can_passwordless_sudo_returns_false_on_exec_error(exec_error):
+    with patch("asyncio.create_subprocess_exec", new=AsyncMock(side_effect=exec_error)):
+        assert await _can_passwordless_sudo() is False
 
 
 if __name__ == "__main__":
